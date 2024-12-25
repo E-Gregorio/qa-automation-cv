@@ -1,0 +1,54 @@
+version: 2.1
+
+orbs:
+  node: circleci/node@5.0.0
+
+jobs:
+  test:
+    docker:
+    - image: mcr.microsoft.com/playwright:v1.41.0-focal
+    steps:
+    - checkout
+    - run:
+        name: Install Dependencies
+        command: |
+          npm install
+          npm ci
+          npx playwright install chromium
+          curl -o allure-commandline-2.24.1.tgz -Ls https://repo.maven.apache.org/maven2/io/qameta/allure/allure-commandline/2.24.1/allure-commandline-2.24.1.tgz
+          sudo tar -zxvf allure-commandline-2.24.1.tgz -C /opt/
+          sudo ln -s /opt/allure-commandline-2.24.1/bin/allure /usr/bin/allure
+
+    - run:
+        name: Run Tests
+        command: |
+          ALLURE_RESULTS_DIR=./allure-results
+          mkdir -p $ALLURE_RESULTS_DIR
+          npm run test:e2e
+          npm run test:api
+          npm run test:sql
+
+    - run:
+        name: Generate Allure Report
+        when: always
+        command: |
+          if [ -d "allure-results" ]; then
+            allure generate allure-results -o allure-report --clean
+          else
+            echo "No allure-results directory found"
+            exit 1
+          fi
+
+    - store_artifacts:
+        path: allure-report
+        destination: allure-report
+
+    - store_artifacts:
+        path: playwright-report
+        destination: playwright-report
+
+workflows:
+  version: 2
+  test-workflow:
+    jobs:
+    - test
